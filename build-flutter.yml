@@ -1,0 +1,77 @@
+name: Build Flutter Release
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+    branches:
+      - main
+      - master
+  workflow_dispatch: 
+
+jobs:
+  build-android:
+    name: Build Android APK & AAB
+    runs-on: ubuntu-latest
+    timeout-minutes: 30 # Batas waktu maksimal build (mencegah bot nyangkut)
+
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+
+      # Setup Java 17 (Sangat penting untuk Gradle versi baru)
+      - name: ☕ Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin' # Temurin biasanya lebih stabil dari Zulu untuk Android
+          java-version: '17'
+
+      # Setup Flutter dengan versi dinamis (mengikuti channel stable terbaru)
+      - name: 🐦 Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+          
+      - name: 🔍 Cek Versi Flutter & Java
+        run: |
+          flutter --version
+          java -version
+
+      - name: 📦 Install Dependencies
+        run: flutter pub get
+
+      # Opsional: Hapus komentar jika kamu pakai build_runner
+      # - name: ⚙️ Generate Files (build_runner)
+      #   run: dart run build_runner build --delete-conflicting-outputs
+
+      # Opsional: Hapus komentar jika project kamu punya testing
+      # - name: 🧪 Run Tests
+      #   run: flutter test
+
+      # 1. Build APK (Untuk testing manual / share via WA)
+      - name: 🏗️ Build APK (Release)
+        run: flutter build apk --release --split-per-abi
+
+      # 2. Build AAB (Wajib kalau mau upload ke Play Store)
+      - name: 🏗️ Build App Bundle (AAB)
+        run: flutter build appbundle --release
+
+      # --- UPLOAD HASIL BUILD ---
+      
+      - name: 🚀 Upload APKs
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-apks
+          # Mengambil semua APK hasil split-per-abi (armeabi, arm64, x86_64)
+          path: build/app/outputs/flutter-apk/*.apk
+          retention-days: 7 # Simpan di GitHub cuma 7 hari biar hemat storage
+
+      - name: 🚀 Upload AAB
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-aab
+          path: build/app/outputs/bundle/release/app-release.aab
+          retention-days: 7
